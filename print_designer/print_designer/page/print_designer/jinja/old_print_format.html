@@ -1,0 +1,300 @@
+{% macro render_statictext(element, send_to_jinja) -%}
+<div style="position: absolute; top:{% if 'printY' in element %}{{ element.printY }}{% else %}{{ element.startY }}{% endif %}px; left:{% if 'printX' in element %}{{ element.printX }}{% else %}{{ element.startX }}{% endif %}px;{% if element.isFixedSize %}width:{{ element.width }}px;height:{{ element.height }}px;{% else %}width:fit-content; height:fit-content; max-width: {{ (settings.page.width - settings.page.marginLeft - settings.page.marginRight - element.startX) + 2 }}px; white-space:nowrap; {%endif%}" class="
+    {{ element.classes | join(' ') }}">
+    <p style="{% if element.isFixedSize %}width:{{ element.width }}px;height:{{ element.height }}px;{% else %}width:fit-content; height:fit-content; max-width: {{ (settings.page.width - settings.page.marginLeft - settings.page.marginRight - element.startX ) + 2 }}px; white-space:nowrap;{%endif%} {{convert_css(element.style)}}"
+        class="staticText {{ element.classes | join(' ') }}">
+        {% if element.parseJinja %}
+        <!-- third Arg is row which is not sent outside table -->
+           {{ render_user_text(element.content, doc, {}, send_to_jinja).get("message", "") }}
+        {% else %}
+            {{_(element.content)}}
+        {% endif %}
+    </p>
+</div>
+{%- endmacro %}
+{% macro page_class(field) %}
+    {% if field.fieldname in ['page', 'topage', 'time', 'date'] %}
+        page_info_{{ field.fieldname }}
+    {% endif %}
+{% endmacro %}
+{% macro render_dynamictext(element, send_to_jinja) -%}
+<div style="position: absolute; top:{% if 'printY' in element %}{{ element.printY }}{% else %}{{ element.startY }}{% endif %}px; left:{% if 'printX' in element %}{{ element.printX }}{% else %}{{ element.startX }}{% endif %}px;{% if element.isFixedSize %}width:{{ element.width }}px;height:{{ element.height }}px;{% else %}width:fit-content; height:fit-content; white-space:nowrap; max-width: {{ (settings.page.width - settings.page.marginLeft - settings.page.marginRight - element.startX) + 2 }}px;{%endif%}" class="
+    {{ element.classes | join(' ') }}">
+        <div style="{% if element.isFixedSize %}width:{{ element.width }}px;height:{{ element.height }}px;{% else %}width:fit-content; height:fit-content; white-space:nowrap; max-width: {{ (settings.page.width - settings.page.marginLeft - settings.page.marginRight - element.startX) + 2 }}px;{%endif%} {{convert_css(element.style)}}"
+            class="dynamicText {{ element.classes | join(' ') }}">
+            {% for field in element.dynamicContent %}
+            <!-- third Arg is row which is not sent outside table -->
+            {{ render_spantag(field, element, {}, send_to_jinja)}}
+            {% endfor %}
+        </div>
+</div>
+{%- endmacro %}
+{% macro render_rectangle(element, send_to_jinja) -%}
+<div id="{{ element.id }}" style="position: absolute; top:{% if 'printY' in element %}{{ element.printY }}{% else %}{{ element.startY }}{% endif %}px; left:{% if 'printX' in element %}{{ element.printX }}{% else %}{{ element.startX }}{% endif %}px; width:{{ element.width }}px;height:{{ element.height }}px; {{convert_css(element.style)}}"
+    class="rectangle {{ element.classes | join(' ') }}">
+    {% if element.childrens %}
+    {% for object in element.childrens %}
+    {{ render_element(object, send_to_jinja)}}
+    {% endfor %}
+    {% endif %}
+</div>
+{%- endmacro %}
+{% macro render_image(element) -%}
+
+{%- if element.image.file_url -%}
+    {%- set value = element.image.file_url -%}
+{%- elif element.image.fieldname -%}
+    {%- if element.image.parent == doc.doctype -%}
+    {%- set value = doc.get(element.image.fieldname) -%}
+    {%- else -%}
+    {%- set value = frappe.db.get_value(element.image.doctype, doc[element.image.parentField], element.image.fieldname) -%}
+    {%- endif -%}
+{%- else -%}
+    {%- set value = "" -%}
+{%- endif -%}
+
+{%- if value -%}
+<div
+    style="position: absolute; top:{% if 'printY' in element %}{{ element.printY }}{% else %}{{ element.startY }}{% endif %}px; left:{% if 'printX' in element %}{{ element.printX }}{% else %}{{ element.startX }}{% endif %}px;width:{{ element.width }}px;height:{{ element.height }}px;
+{{convert_css(element.style)}}"
+    class="image {{ element.classes | join(' ') }}"
+>
+<div
+    style="width:100%;height:100%;
+background-image: url('{{frappe.get_url()}}{{value}}');
+"
+    class="image {{ element.classes | join(' ') }}"
+></div>
+</div>
+{%- endif -%}
+{%- endmacro %}
+{% macro render_barcode(element, send_to_jinja) -%}
+{%- set field = element.dynamicContent[0] -%}
+{%- if field.is_static -%}
+    {% if field.parseJinja %}
+        {%- set value = render_user_text(field.value, doc, {}, send_to_jinja).get("message", "") -%}
+    {% else %}
+        {%- set value =  _(field.value) -%}
+{% endif %}
+{%- elif field.doctype -%}
+{%- set value = frappe.db.get_value(field.doctype, doc[field.parentField], field.fieldname) -%}
+{%- else -%}
+{%- set value = doc.get_formatted(field.fieldname) -%}
+{%- endif -%}
+<div
+    style="position: absolute; top:{% if 'printY' in element %}{{ element.printY }}{% else %}{{ element.startY }}{% endif %}px; left:{% if 'printX' in element %}{{ element.printX }}{% else %}{{ element.startX }}{% endif %}px;width:{{ element.width }}px;height:{{ element.height }}px;
+{{convert_css(element.style)}}"
+    class="{{ element.classes | join(' ') }}"
+>
+<div
+    style="width:100%;height:100%; {{convert_css(element.style)}}"
+    class="barcode {{ element.classes | join(' ') }}"
+>{% if value %}{{get_barcode(element.barcodeFormat, value|string, {
+    "module_color": element.barcodeColor or "#000000",
+    "foreground": element.barcodeColor or "#ffffff",
+    "background": element.barcodeBackgroundColor or "#ffffff",
+    "quiet_zone": 1,
+    }).value}}{% endif %}</div>
+</div>
+{%- endmacro %}
+{% macro render_table(element, send_to_jinja) -%}
+<div style="position: absolute; top:{% if 'printY' in element %}{{ element.printY }}{% else %}{{ element.startY }}{% endif %}px; left:{% if 'printX' in element %}{{ element.printX }}{% else %}{{ element.startX }}{% endif %}px;width:{{ element.width }}px;height:{{ element.height }}px;" class="
+    table-container {{ element.classes | join(' ') }}">
+    <table class="printTable" style="position: relative; width:100%; max-width:{{ element.width }}px;">
+        <thead>
+        {% if element.columns %}
+            <tr>
+        {% for column in element.columns%}
+                <th style="{% if column.width %}width: {{column.width}}%; max-width: {{column.width}}%;{%endif%} {{convert_css(element.headerStyle)}}border-top-style: solid !important;border-bottom-style: solid !important;{%if loop.first%}border-left-style: solid !important;{%elif loop.last%}border-right-style: solid !important;{%endif%}{%- if column.applyStyleToHeader and column.style -%}{{convert_css(column.style)}}{%- endif -%}">
+                {{ _(column.label) }}
+                </th>
+        {% endfor %}
+            </tr>
+        {% endif %}
+        </thead>
+        <tbody>
+        {% if element.columns %}
+         {% for row in doc.get(element.table.fieldname)%}
+            <tr>
+                {% set isLastRow = loop.last %}
+            {% for column in element.columns%}
+                <td style="{{convert_css(element.style)}}{%if row.idx % 2 == 0 %}{{convert_css(element.altStyle)}}{%endif%}{%if isLastRow%}border-bottom-style: solid !important;{%endif%}{%if loop.first%}border-left-style: solid !important;{%elif loop.last%}border-right-style: solid !important;{%endif%}{%- if column.style -%}{{convert_css(column.style)}}{%- endif -%}">
+            {% if column is mapping %}
+                {% for field in column.dynamicContent%}
+                    {{ render_spantag(field, element, row, send_to_jinja) }}
+                {% endfor %}
+        {% endif %}
+                </td>
+            {% endfor %}
+            </tr>
+            {% endfor %}
+        {% endif %}
+        </tbody>
+    </table>
+    {% if element.get("isPrimaryTable", false) or settings.get("schema_version") == "1.0.0" %}
+        {% set renderAfterTableElement =  render_element(afterTableElement, send_to_jinja) %}
+        {% if renderAfterTableElement %}<div style="position: relative; top:0px; left: 0px;">{{ renderAfterTableElement }}</div>{% endif %}
+    {% endif %}
+</div>
+{%- endmacro %}
+{%- macro render_spanvalue(field, element, row, send_to_jinja) -%}
+{%- if field.is_static -%}
+    {% if field.parseJinja %}
+    {{ render_user_text(field.value, doc, row, send_to_jinja).get("message", "") }}
+    {% else %}
+        {{ _(field.value) }}
+    {% endif %}
+{%- elif field.doctype -%}
+{%- set value = _(frappe.db.get_value(field.doctype, doc[field.parentField], field.fieldname)) -%}
+{{ frappe.format(value, {'fieldtype': field.fieldtype, 'options': field.options}) }}
+{%- elif row -%}
+{{row.get_formatted(field.fieldname)}}
+{%- else -%}
+{{doc.get_formatted(field.fieldname)}}
+{%- endif -%}{%- endmacro -%}
+<!-- third Arg is row which is not sent outside table -->
+{% macro render_spantag(field, element, row = {}, send_to_jinja = {}) -%}
+{% set span_value = render_spanvalue(field, element, row, send_to_jinja) %}
+{%- if span_value or field.fieldname in ['page', 'topage', 'time', 'date'] -%}
+    <span class="{% if not field.is_static and field.is_labelled %}baseSpanTag{% endif %}">
+        {% if not field.is_static and field.is_labelled %}
+            <span class="{% if row %}printTable{% else %}dynamicText{% endif %} label-text labelSpanTag" style="user-select:auto; {%if element.labelStyle %}{{convert_css(element.labelStyle)}}{%endif%}{%if field.labelStyle %}{{convert_css(field.labelStyle)}}{%endif%} white-space:nowrap; ">
+                {{ _(field.label) }}
+            </span>
+        {% endif %}
+        <span class="dynamic-span {% if not field.is_static and field.is_labelled %}valueSpanTag{%endif%} {{page_class(field)}} }}"
+            style="{%- if element.style.get('color') -%}{{ convert_css({'color': element.style.get('color')})}}{%- endif -%} {{convert_css(field.style)}} user-select:auto;">
+            {{ span_value }}
+        </span>
+        {% if field.suffix %}
+            <span class="dynamic-span"
+                style="{%- if element.style.get('color') -%}{{ convert_css({'color': element.style.get('color')})}}{%- endif -%} {{convert_css(field.style)}} user-select:auto;">
+                {{ _(field.suffix) }}
+            </span>
+        {% endif %}
+        {% if field.nextLine %}
+            <br/>
+        {% endif %}
+    </span>
+{% endif %}
+{%- endmacro %}
+{% macro render_element(element, send_to_jinja) -%}
+{% if element is iterable and (element is not string and element is not mapping) %}
+{% for object in element %}
+{{ render_element(object, send_to_jinja)}}
+{% endfor %}
+{% elif element.type == "rectangle" %}
+{{ render_rectangle(element, send_to_jinja) }}
+{% elif element.type == "image" %}
+{{render_image(element)}}
+{% elif element.type == "table" %}
+{{render_table(element, send_to_jinja)}}
+{% elif element.type == "text" %}
+{% if element.isDynamic %}
+{{render_dynamictext(element, send_to_jinja)}}
+{% else%}
+{{render_statictext(element, send_to_jinja)}}
+{% endif %}
+{% elif element.type == "barcode" %}
+{{render_barcode(element, send_to_jinja)}}
+{% endif %}
+{%- endmacro %}
+{% macro getFontStyles(fonts) -%}{%for key, value in fonts.items()%}{{key ~ ':ital,wght@'}}{%for index, size in enumerate(value.weight)%}{%if index > 0%};{%endif%}0,{{size}}{%endfor%}{%for index, size in enumerate(value.italic)%}{%if index > 0%};{%endif%}1,{{size}}{%endfor%}{% if not loop.last %}{{'&display=swap&family='}}{%endif%}{%endfor%}{%- endmacro %}
+
+<!-- Don't remove this. user_generated_jinja_code tag is used as placeholder which we replace with user provided jinja template  -->
+<!-- user_generated_jinja_code -->
+<!-- end of user generated code -->
+
+    {% set renderHeader = render_element(headerElement[0].childrens, send_to_jinja) %}
+    {% set renderBody =  render_element(bodyElement[0].childrens, send_to_jinja) %}
+    {% set renderFooter = render_element(footerElement[0].childrens, send_to_jinja) %}
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+        {% if settings.printHeaderFonts %}
+    {% set printHeaderFonts = getFontStyles(settings.printHeaderFonts) %}
+        <link
+            href="https://fonts.googleapis.com/css2?family={{printHeaderFonts}}"
+            rel="stylesheet"
+            id="headerFontsLinkTag"
+        />
+    {%endif%}
+        {% if settings.printFooterFonts %}
+    {% set printFooterFonts = getFontStyles(settings.printFooterFonts) %}
+        <link
+            href="https://fonts.googleapis.com/css2?family={{printFooterFonts}}"
+            rel="stylesheet"
+            id="footerFontsLinkTag"
+            />
+    {%endif%}
+        {% if settings.printBodyFonts %}
+    {% set printBodyFonts = getFontStyles(settings.printBodyFonts) %}
+        <link
+            href="https://fonts.googleapis.com/css2?family={{printBodyFonts}}"
+            rel="stylesheet"
+        />
+    {%endif%}
+    <div id="__print_designer">
+        <div id="header-html">
+            <div style="position: relative; top:0px; left: 0px; width: 100%; height:{{ settings.page.headerHeightWithMargin }}px;">{% if headerElement %}{{ renderHeader }}{%endif%}</div>
+            </div>
+            {% if bodyElement %}{{ renderBody }}{%endif%}
+            <div id="footer-html">
+            <div style="width: 100%; position: relative; top:0px; left: 0px; height:{{ settings.page.footerHeightWithMargin }}px; ">{% if footerElement %}{{ renderFooter }}{%endif%}</div>
+            </div>
+    </div>
+<style>
+    .print-format {
+        box-sizing: border-box;
+        padding: 0in;
+        dpi: {{settings.PDFPrintDPI or 96}}mm;
+        page-width: {{convert_uom(number=settings.page.width, to_uom="mm")}};
+        page-height:{{convert_uom(number=settings.page.height, to_uom="mm")}};
+        margin-top:{{convert_uom(number=settings.page.headerHeightWithMargin or settings.page.marginTop, to_uom='mm')}};
+        margin-bottom:{{convert_uom(number=settings.page.footerHeightWithMargin or settings.page.marginBottom, to_uom='mm')}};
+        margin-left:{{convert_uom(number=settings.page.marginLeft, to_uom='mm')}};
+        margin-right:{{convert_uom(number=settings.page.marginRight, to_uom='mm')}};
+    }
+    .print-designer-container {
+        position: absolute;
+    }
+	.print-format p {
+        margin: 0 !important;
+    }
+    tr:first-child th {
+        border-top-style: solid !important;
+    }
+    tr th:first-child {
+        border-left-style: solid !important;
+    }
+    tr th:last-child {
+        border-right-style: solid !important;
+    }
+    tr:last-child td {
+        border-bottom-style: solid !important;
+    }
+    tr td:first-child {
+        border-left-style: solid !important;
+    }
+    tr td:last-child {
+        border-right-style: solid !important;
+    }
+    .flexDynamicText .baseSpanTag {
+		 display: block;
+    }
+	.flexDynamicText .baseSpanTag .labelSpanTag {
+			display: inline-block;
+			vertical-align: top;
+    }
+	.flexDynamicText .baseSpanTag .valueSpanTag {
+        display: inline-block;
+			vertical-align: top;
+		}
+.flexDirectionColumn .baseSpanTag {
+		display: block;
+	}
+.flexDirectionColumn .baseSpanTag .labelSpanTag {
+		display: block;
+	}
+.flexDirectionColumn .baseSpanTag .valueSpanTag {
+		display: block;
+	}
+</style>
